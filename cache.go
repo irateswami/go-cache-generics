@@ -21,7 +21,7 @@ const (
 
 // Any object you want to store should be defined in this interface
 type Storable interface {
-	Object
+	Object1 | Object2
 }
 
 type Reader interface {
@@ -32,22 +32,26 @@ type Writer interface {
 	Write(p []byte) (n int, err error)
 }
 
-func (o *Object) Write(p []byte) (n int, err error) {
+func (o *Object1) Write(p []byte) (n int, err error) {
 
 	return 0, nil
 }
 
-func (o *Object) Read(p []byte) (n int, err error) {
+func (o *Object1) Read(p []byte) (n int, err error) {
 
 	return 0, nil
 }
 
 // This is just for funsies, but the point is there
-type Object struct {
+type Object1 struct {
 	ID     string `json:"id"`
 	Bigval []byte `json:"bigval"`
 }
 
+type Object2 struct {
+	ID     string `json:"id"`
+	Bigval string `json:"bigval"`
+}
 type Item[T Storable] struct {
 	Object     T
 	Expiration int64
@@ -147,15 +151,19 @@ func (c *cache[T]) Replace(k string, t T, d time.Duration) error {
 func (c *cache[T]) Get(k string) (T, bool) {
 	c.mu.RLock()
 	// "Inlining" of get and Expired
+
+	// allocate a blank generic...just in case nothing
+	var t T
+
 	item, found := c.items[k]
 	if !found {
 		c.mu.RUnlock()
-		return T{}, false
+		return t, false
 	}
 	if item.Expiration > 0 {
 		if time.Now().UnixNano() > item.Expiration {
 			c.mu.RUnlock()
-			return T{}, false
+			return t, false
 		}
 	}
 	c.mu.RUnlock()
@@ -165,16 +173,20 @@ func (c *cache[T]) Get(k string) (T, bool) {
 func (c *cache[T]) GetWithExpiration(k string) (T, time.Time, bool) {
 	c.mu.RLock()
 	// "Inlining" of get and Expired
+
+	// allocate a blank generic...just in case nothing
+	var t T
+
 	item, found := c.items[k]
 	if !found {
 		c.mu.RUnlock()
-		return T{}, time.Time{}, false
+		return t, time.Time{}, false
 	}
 
 	if item.Expiration > 0 {
 		if time.Now().UnixNano() > item.Expiration {
 			c.mu.RUnlock()
-			return T{}, time.Time{}, false
+			return t, time.Time{}, false
 		}
 
 		// Return the item and the expiration time
@@ -191,13 +203,16 @@ func (c *cache[T]) GetWithExpiration(k string) (T, time.Time, bool) {
 func (c *cache[T]) get(k string) (T, bool) {
 	item, found := c.items[k]
 
+	// allocate a blank generic...just in case nothing
+	var t T
+
 	if !found {
-		return T{}, false
+		return t, false
 	}
 	// "Inlining" of Expired
 	if item.Expiration > 0 {
 		if time.Now().UnixNano() > item.Expiration {
-			return T{}, false
+			return t, false
 		}
 	}
 	return item.Object, true
@@ -214,6 +229,10 @@ func (c *cache[T]) Delete(k string) {
 }
 
 func (c *cache[T]) delete(k string) (T, bool) {
+
+	// allocate a blank generic...just in case nothing
+	var t T
+
 	if c.onEvicted != nil {
 		if v, found := c.items[k]; found {
 			delete(c.items, k)
@@ -221,7 +240,7 @@ func (c *cache[T]) delete(k string) (T, bool) {
 		}
 	}
 	delete(c.items, k)
-	return T{}, false
+	return t, false
 }
 
 type keyAndValue[T Storable] struct {
